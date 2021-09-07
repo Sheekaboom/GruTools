@@ -1,0 +1,83 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Sep  1 15:17:25 2021
+@brief scripts to work with exports from GRU website for registration Data (player info)
+@author: alec
+"""
+
+import pandas as pd
+import numpy as np
+import datetime
+
+col_names = ['id', 'start_date', 'start_time', 'end_date', 'end_time', 'home_team',
+       'away_team', 'home_score', 'away_score', 'reported_at', 'division',
+       'stage', 'field', 'field_number']
+
+class Schedule(pd.DataFrame):
+    
+    @property
+    def _constructor(self):
+        return Schedule
+    @property
+    def _constructor_sliced(self):
+        return pd.Series
+    
+    def verify(self,nteams,verbose=True):
+        '''
+        @brief verify our schedule. make sure all teams play exactly once per date/time
+            also make sure we don't reuse the same field twice
+        @param[in] nteams - number of teams that should play each game
+        '''
+        if verbose: print("--- VERIFICATION ---")
+        self._verify_field_use(verbose=verbose)
+        self._verify_team_games(verbose=verbose)
+                    
+    def _verify_field_use(self,verbose=True):
+        dates = np.unique(self['start_date'])
+        times = np.unique(self['start_time'])
+        if verbose:print("{:15s}".format("Field Use: "),end='')
+        for d in dates:
+            date_vals = self[self['start_date']==d]
+            for t in times:
+                games = date_vals[date_vals['start_time']==t]
+                # make sure we dont reuse fields
+                if not len(np.unique(games['field_number']))==len(games):
+                    if verbose: print("FAIL")
+                    raise Exception("Error with field numbers on {} at {}".format(d,t))
+        if verbose: print("SUCCESS")
+        
+    def _verify_team_games(self,verbose=True):
+        dates = np.unique(self['start_date'])
+        times = np.unique(self['start_time'])
+        if verbose:print("{:15s}".format("Team Games: "),end='')
+        for d in dates:
+            date_vals = self[self['start_date']==d]
+            for t in times:
+                games = date_vals[date_vals['start_time']==t]
+                # make sure we dont reuse fields
+                if not len(np.unique(list(games['away_team'])+list(games['home_team'])))==nteams:
+                    if verbose: print("FAIL")
+                    raise Exception("Error with teams playing on {} at {}".format(d,t))
+        if verbose: print("SUCCESS")
+        
+    @classmethod 
+    def from_csv(cls,path,**kwargs):
+        return cls(pd.read_csv(path,**kwargs))
+        
+    
+    
+if __name__=='__main__':
+    
+    fpath = '/data/downloads/2021-fall-broomfield-league_games_2021-09-07_10_11.csv'
+    
+    nteams = 6
+    team_name = ['Team 0{}'.format(i+1) for i in range(nteams)]
+    game_start = [datetime.datetime(1,1,1,10,00,0),datetime.datetime(1,1,1,11,30,0)]
+    game_end = [datetime.datetime(1,1,1,11,20,0),datetime.datetime(1,1,1,13,00,0)]
+    date_start = datetime.datetime(2021,9,12)
+    field_name = 'Broomfield Commons Red Pod'
+    field_number = [1,2,3,4]
+    
+    sched = Schedule.from_csv(fpath)
+    sched.verify(nteams=6)
