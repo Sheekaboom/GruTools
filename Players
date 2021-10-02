@@ -7,8 +7,15 @@ Created on Wed Sep  1 15:17:25 2021
 """
 
 import pandas as pd
+import re
 
 class Players(pd.DataFrame):
+    '''@brief class to handle gru player data downloaded from gru site'''
+    
+    SUB_LIST_FIELDS = ['first_name','last_name','gender',
+                       'email_address','primary_phone_number',
+                       'HighestLevel5', 'Throws', 'Ath','Pos']
+    
     @property
     def _constructor(self):
         return Players
@@ -36,16 +43,76 @@ class Players(pd.DataFrame):
         contact_keys = ['email_address','primary_phone_number']
         info_keys = ['gender']
         waitlisted = players[players['status']=='waitlisted']
-        return waitlisted[['first_name','last_name']+contact_keys+info_keys]
+        return waitlisted
         
     @classmethod 
     def from_csv(cls,path,**kwargs):
         return cls(pd.read_csv(path,**kwargs))
+    
+    def write_csv(self,path,fields=None,**kwargs):
+        '''
+        @brief wrapper to write out data for given fields to a csv
+        @param[in] fields - list of fields to print (e.g. self.SUB_LIST_FIELDS)
+        '''
+        default_kwargs = {'index':False}
+        for k,v in default_kwargs.items():
+            if not k in kwargs.keys(): # set defaults if not provided
+                kwargs[k]=v
+        # set the data to work on
+        out_data = self;
+        if fields is not None: # select fields if desired
+            out_data = self[fields]
+        # now write
+        out_data.to_csv(path,**kwargs)
+        
+    def find_by_name(self,first_name,last_name):
+        '''@brief find closest player names based on input names'''
+        #first look for first name
+        fnmatch = self[self['first_name']==first_name.lower()]
+        lnmatch = self[self['last_name']==last_name.lower()]
+        return pd.concat([fnmatch,lnmatch])
         
     
     
 if __name__=='__main__':
     
-    path = '/data/downloads/2021-Fall-Broomfield-League_2021-09-01-14_51.csv'
+    path = '/data/downloads/2021-Fall-Broomfield-League_2021-09-09-11_50.csv'
     players = Players.from_csv(path)
     possible_subs = players.get_sub_list()
+    #possible_subs.write_csv('~/tmp/broomfield-league-2021_subs.csv',fields=possible_subs.SUB_LIST_FIELDS,index=False)
+    possible_sub_emails = possible_subs['email_address']
+    
+    # names of subs who responded yes
+    sub_names = """
+    Ian Lipton, Nate Hopp, Raj Joshi, Jake Beckner, Brandon Protas, Graham Buhse
+    Scott Nordstrom, Alex Villacorta, Matt Ferreri
+    Mike Shettel, Finn Lundy, Alex Python, Venkatesh Santharam, Matt Whitlock
+    Stanley Ly, Drew Eisenberg, Dalton Chaffee, reed antonich, Sarang Mittal
+    """
+    
+    # split and clean the names
+    sub_names_split = re.split(',\n|,|\n',sub_names)
+    sub_names_split = [s.strip() for s in sub_names_split if s.strip()]
+    sub_first_names = [sn.split(' ')[0] for sn in sub_names_split]
+    sub_last_names  = [sn.split(' ')[-1] for sn in sub_names_split]
+    
+    #for those with more complicated names
+    manual_first_names = ['Lucas Giaco','James "Marty"']
+    manual_last_names  = ['Corsiglia','Shanahan']
+    sub_first_names += manual_first_names
+    sub_last_names += manual_last_names
+    
+    # get locations of names
+    name_locs = []
+    for sfn,sln in zip(sub_first_names,sub_last_names):
+        idx = possible_subs[(possible_subs['first_name']==sfn)&
+                            (possible_subs['last_name']==sln)].index[0]
+        name_locs.append(idx)
+    sub_list = possible_subs.loc[name_locs]
+    
+    sub_list.write_csv('~/tmp/broomfield-league-2021_subs.csv',fields=possible_subs.SUB_LIST_FIELDS,index=False)
+    
+    
+    
+    
+    

@@ -32,6 +32,7 @@ class Schedule(pd.DataFrame):
         if verbose: print("--- VERIFICATION ---")
         self._verify_field_use(verbose=verbose)
         self._verify_team_games(verbose=verbose)
+        self._verify_versus_count(verbose=verbose)
                     
     def _verify_field_use(self,verbose=True):
         dates = np.unique(self['start_date'])
@@ -61,6 +62,30 @@ class Schedule(pd.DataFrame):
                     raise Exception("Error with teams playing on {} at {}".format(d,t))
         if verbose: print("SUCCESS")
         
+    def _verify_versus_count(self,verbose=True):
+        '''@brief verify we play all teams within 1 game of others'''
+        if verbose:print("{:15s}".format("VERSUS COUNT: "),end='')
+        versus_count = self.get_versus_count()
+        mean_plays = {k:np.mean(list(v.values())) for k,v in versus_count.items()}
+        for t in mean_plays.keys():
+            play_diff = np.abs(mean_plays[t]-np.asarray(list(versus_count[t].values())))
+            if np.any(play_diff>1):
+                if verbose: print("FAIL");print(versus_count[t])
+                raise Exception("Error in How many times each team plays one another.")
+        if verbose: print("SUCCESS")
+        
+    def get_versus_count(self):
+        '''@brief get count of how many times each team plays others'''
+        teams = np.unique(sched['home_team'])
+        play_count = {t:{} for t in teams}
+        for t in teams:
+            team_games = self[np.logical_or(self['home_team']==t,self['away_team']==t)]
+            for ot in teams:
+                if ot==t:continue
+                play_count[t][ot] = np.shape(team_games[np.logical_or(team_games['home_team']==ot,team_games['away_team']==ot)])[0]
+        return play_count
+            
+        
     @classmethod 
     def from_csv(cls,path,**kwargs):
         return cls(pd.read_csv(path,**kwargs))
@@ -81,3 +106,4 @@ if __name__=='__main__':
     
     sched = Schedule.from_csv(fpath)
     sched.verify(nteams=6)
+    print(sched.get_versus_count())
