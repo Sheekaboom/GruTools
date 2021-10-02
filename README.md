@@ -1,2 +1,2 @@
 # GruTools
-Tools From coordinating gru league
+Python tools used to help with coordinating Boulder Grass Roots Ultimate (GRU) league.
