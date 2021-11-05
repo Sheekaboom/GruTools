@@ -26,7 +26,17 @@ class Players(pd.DataFrame):
     def __init__(self,*args,**kwargs):
         '''@brief constructor'''
         super().__init__(*args,**kwargs)
+        if 'first_name' in self.columns and 'middle_name' not in self.columns:
+            self._clean_names() # split names with a space in them if not done yet
         #self.set_index_as_names(inplace=True) # use names as index
+        
+    def _clean_names(self,set_middle=False):
+        '''@brief split complex first names to first/middle names'''
+        fnames = self['first_name']
+        fn,mn = self.split_complex_names(fnames)
+        self['first_name'] = fn
+        mn_loc = list(self.columns).index('first_name')+1
+        self.insert(mn_loc,'middle_name',mn_loc)
     
     def set_index_as_names(self,**kwargs):
         '''@brief set the index as the player first_name last_name'''
@@ -38,6 +48,10 @@ class Players(pd.DataFrame):
         vector_keys = ['HighestLevel5','Throws','Ath']
         pass
     
+    def get_accepted(self):
+        '''@brief get players accepted to the league'''
+        return self[self['status']=='accepted']
+    
     def get_sub_list(self):
         '''@brief get a list of possible subs (i.e. pull the watilist with contact info)'''
         contact_keys = ['email_address','primary_phone_number']
@@ -48,6 +62,16 @@ class Players(pd.DataFrame):
     @classmethod 
     def from_csv(cls,path,**kwargs):
         return cls(pd.read_csv(path,**kwargs))
+    
+    @staticmethod
+    def split_complex_names(names):
+        '''@brief split any complex (e.g. have a space in them) first names into first/middle'''
+        split_names = [v.strip().split(' ',1) for v in names]
+        # set first names
+        fn = [sn[0] for sn in split_names]
+        # now set 'middle' name
+        mn = [sn[1] if len(sn)>1 else '' for sn in split_names]
+        return fn,mn
     
     def write_csv(self,path,fields=None,**kwargs):
         '''
@@ -65,29 +89,37 @@ class Players(pd.DataFrame):
         # now write
         out_data.to_csv(path,**kwargs)
         
-    def find_by_name(self,first_name,last_name):
+    def find_by_name(self,first_name=None,last_name=None):
         '''@brief find closest player names based on input names'''
         #first look for first name
-        fnmatch = self[self['first_name']==first_name.lower()]
-        lnmatch = self[self['last_name']==last_name.lower()]
+        fnmatch = None; lnmatch = None;
+        if first_name is not None:
+            fnmatch = self[self['first_name'].apply(str.lower)==first_name.lower()]
+        if last_name is not None:
+            lnmatch = self[self['last_name'].apply(str.lower)==last_name.lower()]
         return pd.concat([fnmatch,lnmatch])
+    
+    def add_column_by_name(self,names,vals,col_name):
+        '''@brief given a list of names and values, add a column with col_name'''
+        pass
         
     
     
 if __name__=='__main__':
     
-    path = '/data/downloads/2021-Fall-Broomfield-League_2021-09-09-11_50.csv'
+    path = '/data/downloads/2021-Fall-Broomfield-League_2021-11-04-17_47.csv'
     players = Players.from_csv(path)
     possible_subs = players.get_sub_list()
     #possible_subs.write_csv('~/tmp/broomfield-league-2021_subs.csv',fields=possible_subs.SUB_LIST_FIELDS,index=False)
     possible_sub_emails = possible_subs['email_address']
-    
+    print(players)
     # names of subs who responded yes
     sub_names = """
     Ian Lipton, Nate Hopp, Raj Joshi, Jake Beckner, Brandon Protas, Graham Buhse
     Scott Nordstrom, Alex Villacorta, Matt Ferreri
     Mike Shettel, Finn Lundy, Alex Python, Venkatesh Santharam, Matt Whitlock
-    Stanley Ly, Drew Eisenberg, Dalton Chaffee, reed antonich, Sarang Mittal
+    Stanley Ly, Drew Eisenberg, Dalton Chaffee, reed antonich, Sarang Mittal,
+    Lucas Corsiglia, James Shanahan
     """
     
     # split and clean the names
@@ -97,10 +129,10 @@ if __name__=='__main__':
     sub_last_names  = [sn.split(' ')[-1] for sn in sub_names_split]
     
     #for those with more complicated names
-    manual_first_names = ['Lucas Giaco','James "Marty"']
-    manual_last_names  = ['Corsiglia','Shanahan']
-    sub_first_names += manual_first_names
-    sub_last_names += manual_last_names
+    #manual_first_names = ['Lucas Giaco','James "Marty"']
+    #manual_last_names  = ['Corsiglia','Shanahan']
+    #sub_first_names += manual_first_names
+    #sub_last_names += manual_last_names
     
     # get locations of names
     name_locs = []
